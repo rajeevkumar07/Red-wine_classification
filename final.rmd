@@ -1,0 +1,440 @@
+---
+title: 'Red wine quality'
+author: "Rajeev"
+date: "06/12/2019"
+output:
+  html_document: default
+---
+
+* [Introduction][Introduction]
+* [Inspect and pre-process][Inspect and pre-process]
+  * [Select variables][Select variables]
+   * [Inspect and transform 1: individual variables][Inspect and transform 1: individual variables]
+   * [Inspect and transform 2: Multivariable relationship] [Inspect and transform 2: Multivariable relationship]
+   * [Target ~ predictor relationships][Target ~ predictor relationships]
+   * [Modeling][Modeling]
+   * [Interpreting coefficients][Interpreting coefficients]
+* [Summary][Summary]
+
+## Introduction
+
+**Data:** My [dataset](https://www.kaggle.com/uciml/red-wine-quality-cortez-et-al-2009) contains features that can be used to determine the quality of a red wine. Each row represents one red wine type.
+
+**Goals:**Goals are to predict and classify the red wine quality as 0 *bad* or 1 *good* and also to answer the question *Is this red wine good for health?*
+
+**Modeling:** My target variable '*quality*' is categorical variable with 10 levels, So I decided to convert it into binary variable. So I plan to implement logistic regression and classify the red wine based on quality. I expect pH, citric acid, alcohol and density to be the most features.
+
+## Inspect and pre-process 
+
+```{r message=FALSE, warning=FALSE}
+# load libraries 
+library(tidyverse)
+library(gridExtra)
+library(psych)
+library(caret)
+library(factoextra)
+
+# load data
+red<- read.csv("D:/subjects/datamining new/red-wine-quality-cortez-et-al-2009/winequality-red.csv")
+wine<- read.csv("D:/subjects/datamining new/red-wine-quality-cortez-et-al-2009/winequality-red.csv")
+
+# Number of rows/columns
+red %>% dim()
+```
+
+The Red wine quality dataset contains 1599 rows(each red wine) and 12 columns (features of a red wine).
+
+```{r}
+# summary of dataset
+red %>% summary
+```
+
+This dataset is completely cleaned one with no missing values and all the variables are numerical and quality variable is to be converted from int to binary.
+
+### Select variables
+
+I have selected 11 variables i.e. 10 predictor variables and 1 target variable 'quality':
+
+* `Fixed-acidity:`has acidic nature values in it.
+* `Volatile-acidity:`has acetic acid composition values.
+* `Critic acid:`this adds freshness to wine.
+* `Residual sugar:` is amount of sugar in gram/liter values.
+* `Chlorides:` this contains amount of salt.
+* `Free sulfur dioxide` and `total sulfur dioxide` is the portion of so2 that is      free in the wine plus the portion that is bound to other chemicals in the wine     such as aldehydes, pigments or sugars.
+* `Density:` this is ratio of water to alcohol.
+* `Ph:` is scale that determines the acidic nature of wine and cannot be dropped.  
+* `Alcohol:` is important variable which helps in classifying the wine.
+* `Quality:` is the predictor variable from values 0 to 10, this is numerical and may be converted to binary variable.
+
+```{r}
+# select desired columns
+red <- red %>% select(-sulphates)
+
+# structure of selected variables
+red %>% str
+```
+
+The new data contains 11 columns and dropped `sulphates` variable because it has least correlation with target variable when compared to free sulfur dioxide and total sulfur dioxide.
+
+## Inspect and transform 1: individual variables
+
+The quality variable is converted into binary form like the quality value is greater than or equal to 6 it is considered as good or else bad.
+
+```{r}
+red$quality_binary<- ifelse(red$quality >= 6,1,0) 
+red<- red %>% select( -quality)
+
+# table for transformed quality variable
+red$quality_binary %>% table 
+
+```
+
+```{r}
+red %>% head
+```
+
+Rest of the 10 variables are continuous numerical variable so I need to plot histograms for them.
+Below are the comparison histograms of 8 variables i.e. before and after log transformation and two are already normally distributed.
+
+#### Before Transformation                                                                                                                                                        
+
+```{r fig.width=10, fig.height=6}
+g1<- red %>% ggplot(aes(x =fixed.acidity ))+ geom_histogram(bins=50, fill= 'black')
+g2<- red %>% ggplot(aes(x =volatile.acidity ))+ geom_histogram(bins=50, fill= 'black')
+g3<- red %>% ggplot(aes(x =residual.sugar ))+ geom_histogram(bins=50, fill= 'black')
+g4<- red %>% ggplot(aes(x =chlorides ))+ geom_histogram(bins=50, fill= 'black')
+g5<- red %>% ggplot(aes(x =free.sulfur.dioxide ))+ geom_histogram(bins=50, fill= 'black')
+g6<- red %>% ggplot(aes(x =total.sulfur.dioxide ))+ geom_histogram(bins=50, fill= 'black')
+g7<- red %>% ggplot(aes(x = citric.acid))+ geom_histogram(bins=50, fill= 'black')
+g8<- red %>% ggplot(aes(x = alcohol))+ geom_histogram(bins=50, fill= 'black')
+g9<- red %>% ggplot(aes(x = pH ))+ geom_histogram(bins=50, fill= 'black')
+g10<- red %>% ggplot(aes(x =density ))+ geom_histogram(bins=50, fill= 'black')
+grid.arrange(g1, g2, g3, g4, g5, g6, g7, g8,g9,g10, nrow=2)
+
+```
+
+#### After transformation
+
+````{r fig.width=10, fig.height=6}
+red <- red %>%
+  mutate(log1_fixedacidity= log1p(fixed.acidity)) %>%
+  select(-fixed.acidity)
+log_g1<- red %>% ggplot(aes(x =log1_fixedacidity))+ geom_histogram(bins=50, fill= 'black')
+
+red <- red %>%
+  mutate(log1_volatileacidity= log1p(volatile.acidity)) %>%
+  select(-volatile.acidity)
+log_g2<- red %>% ggplot(aes(x =log1_volatileacidity ))+ geom_histogram(bins=50, fill= 'black')
+
+red <- red %>%
+  mutate(log1_residualsugar= log1p(residual.sugar)) %>%
+  select(-residual.sugar)
+log_g3<- red %>% ggplot(aes(x =log1_residualsugar ))+ geom_histogram(bins=50, fill= 'black')
+
+red <- red %>%
+  mutate(log1_chlorides= log1p(chlorides)) %>%
+  select(-chlorides)
+log_g4<- red %>% ggplot(aes(x =log1_chlorides ))+ geom_histogram(bins=50, fill= 'black')
+
+red <- red %>%
+  mutate(log1_freesulphur= log1p(free.sulfur.dioxide)) %>%
+  select(-free.sulfur.dioxide)
+log_g5<- red %>% ggplot(aes(x =log1_freesulphur ))+ geom_histogram(bins=50, fill= 'black')
+
+red <- red %>%
+  mutate(log1_totalsulphur= log1p(total.sulfur.dioxide)) %>%
+  select(-total.sulfur.dioxide)
+log_g6<- red %>% ggplot(aes(x =log1_totalsulphur ))+ geom_histogram(bins=50, fill= 'black')
+
+red <- red %>%
+  mutate(log1_citricacid= log1p(citric.acid)) %>%
+  select(-citric.acid)
+log_g7<- red %>% ggplot(aes(x =log1_citricacid ))+ geom_histogram(bins=50, fill= 'black')
+
+red <- red %>%
+  mutate(log1_alcohol= log1p(alcohol)) %>%
+  select(-alcohol)
+log_g8<- red %>% ggplot(aes(x =log1_alcohol ))+ geom_histogram(bins=50, fill= 'black')
+
+grid.arrange(log_g1,log_g2,log_g3,log_g4,log_g5,log_g6,log_g7,log_g8, nrow=2)
+
+
+```
+
+## Inspect and transform 2: Multivariable relationship
+
+In this section, I will inspect relationships between each predictor variable and also check multicollinearity between my continuous variables.
+
+### Target ~ predictor relationships
+
+
+```{r, warning= FALSE, fig.width=10, fig.height=6}
+# fixed_acidity vs quality
+a <-red %>% ggplot(aes(x= log1_fixedacidity, fill=factor(quality_binary))) +
+  geom_density(alpha=0.5) 
+
+# Volatile_acidity vs quality
+b <- red %>% ggplot(aes(x= log1_volatileacidity, fill=factor(quality_binary))) +
+  geom_density(alpha=0.5) 
+
+ # Residual_sugar vs quality
+c <-red %>% ggplot(aes(x= log1_residualsugar, fill=factor(quality_binary))) +
+  geom_density(alpha=0.5) 
+
+# Chlorides vs quality
+d <-red %>% ggplot(aes(x= log1_chlorides, fill=factor(quality_binary))) +
+  geom_density(alpha=0.5)+
+  xlim(0.0, 0.5)
+
+# Free_sulphur_dioxide vs quality
+e <-red %>% ggplot(aes(x= log1_freesulphur, fill=factor(quality_binary))) +
+  geom_density(alpha=0.5)
+
+# Total_sulphur_dioxide vs quality
+f <-red %>% ggplot(aes(x= log1_totalsulphur, fill=factor(quality_binary))) +
+  geom_density(alpha=0.5)
+
+# citric acid vs quality
+g <-red %>% ggplot(aes(x= log1_citricacid, fill=factor(quality_binary))) +
+  geom_density(alpha=0.5)+
+  xlim(0,0.8)
+
+# Alcohol vs quality
+h<-red %>% ggplot(aes(x= log1_alcohol, fill=factor(quality_binary))) +
+  geom_density(alpha=0.5)
+
+# pH vs quality
+i<-red %>% ggplot(aes(x= pH , fill=factor(quality_binary))) +
+  geom_density(alpha=0.5)
+
+ # Density vs quality
+j<-red %>% ggplot(aes(x= density , fill=factor(quality_binary))) +
+  geom_density(alpha=0.5)+
+  xlim(0.99,1)
+grid.arrange(a,b,c,d,e,f,g,h,i,j, nrow=5)
+
+```
+
+### Some Notes
+
+* Fixed_acidity is negatively correlated with quality because there are more number of bad quality types in this.
+* Volatile acidity is somewhat bimodal because it may have higher correlation with other variable which we will get to know when be check for multicollinearity.
+* Residual sugar has lot of outliers and will be removed further by replacing them with median value.
+* Chlorides has lot of outliers and will be removed further by replacing them with median value.
+* Total_sulphur is really important to classify the quality of redwine because there are more number of records that contributed to good quality wine.
+* Citric acid is multimodal because it has negative correlation with volatile acidity and pH and may not be dropped because the relation values is -0.5 which is considerable.
+* From above multivariable density plots, `volatile_acidity`, `free_sulphur_dioxide`, `total_sulphur_dioxide`, `citricacid` are bimodal i.e. there might be correlation between those independent variables.
+* It seems that there is multicollinearity between the independent continuous variable which will create redundant information to the model.
+* Next step is to find the collinearity between variables.
+
+### Multicollinearity plot
+
+It seems that `chlorides` and `residual sugar` has lot of outliers.
+
+```{r, fig.width= 10, fig.height=10}
+red_cont<- red %>%
+  mutate(log1_chlorides= ifelse(log1_chlorides > 0.15, median(log1_chlorides), log1_chlorides),
+         log1_residualsugar= ifelse(log1_residualsugar > 1.5, median(log1_residualsugar),log1_residualsugar),
+         density= ifelse(density<0.9925,median(density),density)
+    
+  )%>%
+  select(-pH, -quality_binary, -log1_fixedacidity, -density)
+
+# pair plot
+pairs.panels(red_cont, pch= ".")
+```
+
+
+
+### Some more notes
+
+* My initial assumption of `free_sulphur_dioxide` and `total_sulphur_dioxide` that both are similar to each other became true and has the highest correlation between any two independent variables.
+* So `free_sulphur_dioxide` has least correlation i.e. -0.06 with target variable when compared to `total_sulphur_dioxide` -0.2. Hence I decided to drop `free_sulphur_dioxide` from my dataframe.
+* We can see from above plot that there’s no multicollinearity issue because all independent variables are least correlated to each others.
+* So I don’t have to perform **PCA** on this data and **clustering** as variables are already uncorrelated with each other.
+
+### Corelation between free_sulphur_dioxide and total_sulphur_dioxide
+
+```{r}
+# Look at correlation
+print(cor(red$log1_freesulphur, red$log1_totalsulphur))
+```
+
+#### Checking correlation
+
+```{r}
+# Visualize relationship 
+red %>% ggplot(aes(x=log1_freesulphur, y=log1_totalsulphur)) +
+  ggtitle('Check for multicollinearity') +
+  geom_point() +
+  geom_smooth(method='lm')
+```
+
+
+#### Dropping free_sulphur_dioxide
+
+```{r}
+red$log1_freesulphur <- NULL
+```
+
+#### PCA
+
+```{r}
+pca<- red %>% select(-quality_binary)
+model<- pca %>% prcomp
+
+head(model$x)
+```
+
+```{r}
+fviz_screeplot(model, addlabels = TRUE, ylim = c(0, 100))
+```
+
+I haven't used results of PCA, because it was not giving much significant results. In Above scree plot, first pca corresponds to free sulphur variable which has the highest correlation of 0.78 with target.
+
+## Modeling
+
+I used logistic regression to predict the quality of wine. In original dataset, the percentage of good red wines is only 53% and this prediction is to be improved. I have included volatile acidity, chlorides, total sulphur, alcohol, density ph, residual sugar for baseline model and will remove or add variables to increase the accuracy. 
+
+```{r}
+lm<- glm(red$quality_binary ~ red$log1_volatileacidity + red$log1_chlorides + red$log1_totalsulphur + red$log1_alcohol + red$density+ red$pH + red$log1_fixedacidity+ red$log1_residualsugar, data=red, family = 'binomial')
+summary(lm)
+```
+
+#### Notes
+* Fixedacidity, chlorides, total sulphur, ph are relatively less significant than other variables, So may be we can consider removing them for modelling.
+* Higher the density of red wine better the quality of red wine.
+* And the remaining variables also contribute but not that significantly.
+
+## Interpreting coefficients
+
+Lets calculate odd ratios from original log-odds coefficients.
+
+```{r}
+lm %>% coefficients %>% exp %>% round(2)
+```
+
+#### Some notes
+* The odds of `chlorides`is 100(1-0.54) = 46% lower than it being bad quality wine.
+* The odds of `total sulphur` and `ph` are 100(1-0.74)= 36% lower than it being bad quality wine.
+* The odds of `fixedacidity` is 100(1.17-1)= 17% lower than it being bad quality wine.
+* The odds of `residualsugar` is 100(1-0.67) =34% lower than it being bad quality wine.
+
+Next step is to predictive performance of the dataset.
+
+
+## Evaluating predictive performance
+
+I divided the dataset into train and test dataset to find the accuracy of my predictions. First I predicted on training set and after I predicted on test dataset. 
+
+I only considered few variables for baseline model and will consider more variables for model development and now I considered more variables which improved the accuracy of prediction on test data set.
+
+```{r}
+n<- nrow(red)
+train_ind<- sample(seq_len(n), size=floor(0.75 * n))
+
+#splitting dataz6+.
+wine_train <- red[train_ind, ]
+wine_test <- red[-train_ind, ]
+
+wine_train %>% head
+
+```
+
+```{r, warning= FALSE}
+#fitting model to training data
+ lm_train<- glm(quality_binary ~log1_chlorides+ log1_citricacid+ log1_residualsugar+ log1_fixedacidity+ log1_volatileacidity + density +pH+log1_alcohol,data=wine_train, family='binomial')
+
+# Predict on training set (within-sample predictions)
+wine_train$y_pred_probs <- predict(lm_train, wine_train, type="response")
+wine_train$y_pred <- ifelse(wine_train$y_pred_probs > 0.5, 1, 0)
+
+# Predict on test set (out-of-sample predictions)
+wine_test$y_pred_probs <- predict(lm_train, wine_test, type="response")
+wine_test$y_pred <- ifelse(wine_test$y_pred_probs > 0.5, 1, 0)
+
+
+```
+
+#### Modeling and predicting on train dataset
+
+Confusion matric for prediction on train dataset and I calculated accuracy, precision and recall.
+
+```{r}
+#confusion matrix
+cm_train <- confusionMatrix(as.factor(wine_train$y_pred), as.factor(wine_train$quality_binary), positive='1')
+cm_train$table
+```
+
+```{r}
+#overall accuracy
+cm_train$overall['Accuracy'] %>% round(3)
+
+```
+
+```{r}
+cm_train$byClass['Recall'] %>% round(3)
+```
+
+```{r}
+cm_train$byClass['Precision'] %>% round(2)
+
+```
+
+#### Modeling and predicting on test dataset
+
+Confusion matrix for prediction on test dataset.
+
+```{r}
+# Confusion matrix for predictions on test set
+cm_test <- confusionMatrix(as.factor(wine_test$y_pred), as.factor(wine_test$quality_binary), positive='1')
+cm_test$table
+```
+
+```{r}
+cm_test$overall['Accuracy'] %>% round(2)
+
+```
+
+
+```{r}
+cm_test$byClass['Recall'] %>% round(2)
+
+```
+
+```{r}
+cm_test$byClass['Precision'] %>% round(2)
+
+```
+
+Results are similar to both training and testing sets. Metrics can be interpreted as follows:
+
+* **Recall:** The model correctly identified 74% of red wine types.
+* **Precision:** When model predicts quality, it is 74% of the time i.e. it increased from 0.66 to 0.74.
+* **Accuracy:** 74% of the good quality red wines are there and it increased from 66% to 74%.
+
+## Summary
+
+  * Interpretation
+    * Higher the alcohol percentage in red wine, better the quality of red wine.
+    * Higher the density of wine, better the quality.
+    * Lower the volatile acidity, better the quality.
+  * Prediction
+    * Overall accuracy of model was 67% and now its 74% on test set with 75% recall and 74% precision.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
